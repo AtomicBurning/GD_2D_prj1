@@ -9,6 +9,8 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
 #include "Camera/CameraComponent.h"
+#include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
 
 DEFINE_LOG_CATEGORY_STATIC(SideScrollerCharacter, Log, All);
 
@@ -103,23 +105,55 @@ void AGD_2D_prj1Character::Tick(float DeltaSeconds)
 //////////////////////////////////////////////////////////////////////////
 // Input
 
-void AGD_2D_prj1Character::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
+void AGD_2D_prj1Character::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
-	// Note: the 'Jump' action and the 'MoveRight' axis are bound to actual keys/buttons/sticks in DefaultInput.ini (editable from Project Settings..Input)
-	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
-	PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACharacter::StopJumping);
-	PlayerInputComponent->BindAxis("MoveRight", this, &AGD_2D_prj1Character::MoveRight);
+    Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-	PlayerInputComponent->BindTouch(IE_Pressed, this, &AGD_2D_prj1Character::TouchStarted);
-	PlayerInputComponent->BindTouch(IE_Released, this, &AGD_2D_prj1Character::TouchStopped);
+    // Cast PlayerInputComponent to UEnhancedInputComponent
+    if (UEnhancedInputComponent* Input = Cast<UEnhancedInputComponent>(PlayerInputComponent))
+    {
+        // Bind the MoveRight action
+        if (IA_Move)
+        {
+            Input->BindAction(IA_Move, ETriggerEvent::Triggered, this, &AGD_2D_prj1Character::MoveRight);
+			Input->BindAction(IA_Jump, ETriggerEvent::Started, this, &AGD_2D_prj1Character::Jump);
+			Input->BindAction(IA_Jump, ETriggerEvent::Completed, this, &AGD_2D_prj1Character::StopJumping);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("IA_Move is not initialized!"));
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to cast PlayerInputComponent to UEnhancedInputComponent"));
+    }
+
+    // Set up the Enhanced Input Subsystem
+    if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
+    {
+        if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+        {
+            Subsystem->ClearAllMappings();
+            if (InputMapping)
+            {
+                Subsystem->AddMappingContext(InputMapping, 0);
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("InputMapping is not initialized!"));
+            }
+        }
+    }
 }
 
-void AGD_2D_prj1Character::MoveRight(float Value)
+
+void AGD_2D_prj1Character::MoveRight(const FInputActionValue& Value)
 {
 	/*UpdateChar();*/
 
 	// Apply the input to the character motion
-	AddMovementInput(FVector(1.0f, 0.0f, 0.0f), Value);
+	AddMovementInput(FVector(1.0f, 0.0f, 0.0f), Value.Get<float>());
 }
 
 void AGD_2D_prj1Character::TouchStarted(const ETouchIndex::Type FingerIndex, const FVector Location)
